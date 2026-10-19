@@ -1,0 +1,5 @@
+/dist/
+/.cache/
+/config.local.json
+/state/
+*.secret

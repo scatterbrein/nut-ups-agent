@@ -1,0 +1,20 @@
+{
+  "state_dir": "/var/lib/nut-ups-agent",
+  "poll_seconds": 3,
+  "nut_timeout_seconds": 5,
+  "failure_threshold": 2,
+  "low_battery_percent": 10,
+  "voltage_drop_percent": 15,
+  "max_pending_messages": 4096,
+  "sources": [
+    {
+      "id": "local-nut",
+      "name": "My UPS server",
+      "host": "127.0.0.1",
+      "port": 3493
+    }
+  ],
+  "backend": {
+    "url": ""
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "validated_at": "2026-10-19T19:06:05.236626+00:00",
+  "agent_version": "0.1.0",
+  "toolchain": "go version go1.27.2 darwin/arm64",
+  "tests": {
+    "root_tests_passed": 23,
+    "leaf_scenarios_passed": 36,
+    "passed_including_parent_subtests": 40,
+    "failed": 0,
+    "race_detector": true,
+    "output": "/private/tmp/ups-agent-tests.jsonl"
+  },
+  "go_vet": "passed",
+  "shell_syntax": "passed",
+  "macos_cli_version_config_once_status": "passed",
+  "linux_cross_compilation": [
+    "arm64",
+    "amd64",
+    "armv7"
+  ],
+  "package_contents_and_sha256": "verified",
+  "hardware_write_commands_sent": false,
+  "real_nut_server_tested": false,
+  "raspberry_pi_physical_validation": "pending",
+  "backend_deployed": false,
+  "mobile_remote_integration": false,
+  "ios_app_modified": false,
+  "server_installation_performed": false,
+  "artifacts": [
+    {
+      "path": "dist/nut-ups-agent-linux-amd64",
+      "bytes": 6992032,
+      "sha256": "72d671eb8d3db3db0fd5a3c99e9bfd47590fa3314588b760b6f051c23cda336e"
+    },
+    {
+      "path": "dist/nut-ups-agent-linux-amd64-0.1.0.tar.gz",
+      "bytes": 2965589,
+      "sha256": "47df42d14735c6ad7b837f1423587459b71fc6f2d4ce5f0b9424678db909b69e"
+    },
+    {
+      "path": "dist/nut-ups-agent-linux-arm64",
+      "bytes": 6422688,
+      "sha256": "32aad265143401e5693b37a4d18e148edfbc4db2aa9bc80dcc4923a35a139bec"
+    },
+    {
+      "path": "dist/nut-ups-agent-linux-arm64-0.1.0.tar.gz",
+      "bytes": 2663380,
+      "sha256": "6dc28729adbb4bb2bba8bcfd867a10270932c1c6bc93b128c51486c79d03c48d"
+    },
+    {
+      "path": "dist/nut-ups-agent-linux-armv7",
+      "bytes": 6946976,
+      "sha256": "17ec2bda450914bf248cd4416ee4a347bea3392eeedf5993c3f1851e4846ae8a"
+    },
+    {
+      "path": "dist/nut-ups-agent-linux-armv7-0.1.0.tar.gz",
+      "bytes": 2876966,
+      "sha256": "7bc6019ec7e8807bd181e08d7dc234534621507ff4765314a9df7315b4ecbb28"
+    }
+  ],
+  "source_sha256": {
+    ".gitignore": "eaa6192a067cff3d4e9cd2641acf5b2436dc208a59fdab1e2ff1afcc28458381",
+    "README.md": "9ddfc1eb93c59422541f7f155b0897eeac909ec36ea3a27b5532df6d74366069",
+    "cmd/nut-ups-agent/main.go": "06a0fb569657c5cfa0bcffa156e47fe1c14756481435368bfc3b58d53b22a7b9",
+    "config.example.json": "e2001809ef77a1cdd653ec97ad66fbb76f221ecf897b96e53a75a5ee11d5c884",
+    "docs/backend-contract.md": "8faceb45efac808ad496cbda31bdaeec2b1464cbf64fb04dcd8c0fef98889b4e",
+    "go.mod": "e1b11ac4157ec11c2690e1ed1813f8ea15eb765af6f33ec060275d6aefc5838b",
+    "internal/config/config.go": "fb5f0c01b5becdc886f3dcb36d4a5ca19c2f3576a1d9abd204ed993208f1793e",
+    "internal/config/config_test.go": "a28b48f026f2c2e9aa58a19384726a7b348ec0a096fc2547d6b6fe511dda0c51",
+    "internal/model/model.go": "d0323cbbc44d836a3ba452def39da80c4378c2e5d80c9a1c0c0e5056b46656c2",
+    "internal/model/model_test.go": "c3718b274850800ae80bbacc5f987a02acbcec09fcfb9eeec4ad05abc89c9138",
+    "internal/nut/client.go": "9b24c638ad86ab0f4ad0792ecc358b6d41a861c725f08cde60f24e2cc49a1fbe",
+    "internal/nut/client_test.go": "ad4efe17b027794ce580ab9b4abea9a28339db0e695c97411cd75c916e40776d",
+    "internal/runner/runner.go": "ceeaf84e6cf806bd698a85b09179796fc7843b53a7c680e155befdece1930aed",
+    "internal/runner/runner_test.go": "63fd86765f23b1049cce7b5be7632d66284202d6be63109812c993fa7983440e",
+    "internal/state/events.go": "30d47b03a79a475c6d8078a452ea2c08270abf20adf482e11c7b666f9b1c4519",
+    "internal/state/journal.go": "be8025b8c5060976cdc6fa3656acc11050829669a4ba08c984cdf63ecb57dd01",
+    "internal/state/journal_test.go": "be193853b3cc6a33b9fd1a3e43003e04223c693174e1c7a045933bf775e73cdd",
+    "internal/state/lock_unix.go": "9ca29d7a1e42dc385713a4157844180339c90c9a8a0a69e29f7708fdea479659",
+    "internal/state/store.go": "f7f30837936e5cd45ceccdd0c66e531ce600c6d94632d11d6b03b7c2300f26c4",
+    "internal/state/store_test.go": "eb929be7b30b36da81b69d60f27edcd1d145715425fab99ca98a1dfaf1245f4e",
+    "internal/uplink/sender.go": "8d3933d6ecb72aae57b9e924b27e33dfda431d20bab5d2f7ba69d7c4f2a01a3b",
+    "internal/uplink/sender_test.go": "c936033b2e61f804d8e4eddc1ce11ed6d5a7407631c02d2f8c2f5651ac56b7d1",
+    "packaging/nut-ups-agent.service": "14b0e86f22d4d3d509167c04005b60ee341d6ca045f557831c46896ee4c5ed6f",
+    "scripts/build.sh": "e318a2870daba434647aa949fff88f892e9910992b1375c9c6b0a611a36b5500",
+    "scripts/install.sh": "ee7a2e564d08807c57a20f26fbefcc6836fbbeb7b7ba16f8bdc2fb74bb82d960",
+    "scripts/package.sh": "d4b6b8e5d74ec8a4fb93a4632d7d827efae165bc4aaa19e1528dd2feb4b2faea"
+  }
+}

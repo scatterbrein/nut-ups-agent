@@ -1,0 +1,33 @@
+[Unit]
+Description=NUT UPS Monitor optional read-only agent
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=nut-ups-agent
+Group=nut-ups-agent
+ExecStart=/usr/local/bin/nut-ups-agent -config /etc/nut-ups-agent/config.json
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=15
+StateDirectory=nut-ups-agent
+StateDirectoryMode=0750
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
