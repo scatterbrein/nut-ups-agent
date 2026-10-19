@@ -1,0 +1,9 @@
+# Merge into the existing root .htaccess; do not replace the website's rules.
+<Files "ups-api-config.php">
+Require all denied
+</Files>
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^api/v1(?:/.*)?$ ups-api.php [END]
+RewriteRule ^(?:api(?:/|$)|ups-api(?:-config)?\.php$) - [F,END]
+</IfModule>

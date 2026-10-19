@@ -1,6 +1,6 @@
-# NUT UPS Monitor — agente local opcional (prototipo 0.1.0)
+# NUT UPS Monitor — agente local opcional (piloto 0.2.0)
 
-Primer componente del futuro modo remoto. Se ejecuta en el equipo que puede consultar NUT y conserva lecturas aunque el iPhone esté cerrado. **Todavía no actualiza la app móvil:** faltan el backend, la vinculación de usuarios, APNs y la fuente remota de la app. La app 1.1 y el sitio publicado no se modifican con este componente.
+Componente opcional del futuro modo remoto. Se ejecuta en el equipo que puede consultar NUT y conserva lecturas aunque el iPhone esté cerrado. Incluye un [backend ligero](backend/README.md) en **https://ups.omstudioit.com/api/v1** y vinculación por código temporal. **Todavía no actualiza la app móvil:** faltan su fuente remota, el flujo de acceso para usuarios finales y APNs. La app 1.1 permanece sin cambios; el sitio conserva sus páginas.
 
 ## Qué funciona
 
@@ -24,7 +24,7 @@ Go se requiere sólo para compilar desde el código. El usuario que recibe el pa
 
 ## Compilar y probar
 
-Desde esta carpeta, con Go 1.24 o superior:
+Desde esta carpeta, con Go 1.24 o superior. Para empaquetar el backend se utiliza Python 3; no es una dependencia de ejecución en la Raspberry Pi:
 
 ```sh
 go test -race ./...
@@ -42,7 +42,7 @@ En el equipo Linux, extrae el paquete de su arquitectura. Copia `config.example.
 - `state_dir`: una ruta absoluta privada y escribible; por ejemplo `/home/pi/nut-ups-agent-state` si ése es tu usuario. La carpeta debe tener permisos 0700 o 0750.
 - `sources[].host`: `127.0.0.1` si el agente corre junto a NUT; la IP o nombre del servidor si corre en otro equipo.
 - `sources[].id`: nombre estable elegido por ti. No cambiarlo para renombrar una fuente; utiliza `name`.
-- `backend.url`: vacío para esta primera prueba. No hay ningún servicio de OM Studio IT configurado ni receptor remoto desplegado.
+- `backend.url`: vacío para esta primera prueba local; el modo remoto se activa únicamente mediante configuración explícita o vinculación.
 
 ```sh
 ./nut-ups-agent-linux-arm64 -config ./config.local.json -check-config
@@ -89,7 +89,7 @@ sudo -u nut-ups-agent /usr/local/bin/nut-ups-agent -status
 
 No ejecutes dos agentes apuntando al mismo `state_dir`. Mantén el equipo y la red local alimentados por el UPS si quieres observar cortes eléctricos.
 
-## Credenciales y envío futuro
+## Credenciales y envío opcional
 
 La lectura anónima es el modo inicial. Si el servidor exige autenticación, añade `username` y `password_file` a esa fuente. El archivo de contraseña debe estar fuera del proyecto, ser accesible al usuario del servicio y tener permisos 0600 o 0640. Se elimina sólo el salto de línea final; se conservan espacios que formen parte de la contraseña.
 
@@ -104,11 +104,22 @@ La lectura anónima es el modo inicial. Si el servidor exige autenticación, añ
 }
 ```
 
-NUT TCP no se cifra en este prototipo: úsalo dentro de una red confiable. La contraseña NUT nunca se incluye en el diario, checkpoint, cola, estado mostrado ni envíos HTTPS. Tampoco se envían el host privado, el usuario NUT, números de serie ni variables arbitrarias. Los nombres de fuente y claves de UPS sí forman parte de la telemetría; usa nombres que quieras compartir con tu futuro servicio.
+NUT TCP no se cifra en este piloto: úsalo dentro de una red confiable. La contraseña NUT nunca se incluye en el diario, checkpoint, cola, estado mostrado ni envíos HTTPS. Tampoco se envían el host privado, el usuario NUT, números de serie ni variables arbitrarias. Los nombres de fuente y claves de UPS sí forman parte de la telemetría; usa nombres que quieras compartir con el servicio remoto opcional.
 
-Cuando exista un backend compatible, configura `backend.url` con su endpoint HTTPS completo y `backend.token_file` con un token por agente en un archivo separado, también 0600/0640. No introduzcas credenciales en la URL. Se valida el certificado TLS, no se siguen redirecciones y no hay opción para desactivar esa validación. El token se relee para permitir rotación sin reiniciar. El permiso `allow_http_loopback` sólo habilita HTTP a una IP loopback para pruebas locales; nunca a servidores LAN o internet.
+Para activar el piloto, el operador genera un código temporal siguiendo la [guía del backend](backend/README.md). Detén el servicio antes de vincularlo; mantén `backend.url` vacío y ejecuta:
 
-El [contrato del backend](docs/backend-contract.md) describe lo que debe implementar el siguiente componente. No basta con apuntar a una página web, un webhook arbitrario o la landing actual.
+```sh
+sudo systemctl stop nut-ups-agent
+sudo -u nut-ups-agent /usr/local/bin/nut-ups-agent \
+  -pair-url https://ups.omstudioit.com/api/v1 -pair-code XXXX-XXXX-XXXX-XXXX
+sudo systemctl start nut-ups-agent
+```
+
+Usa el código real, válido una sola vez durante 10 minutos. La vinculación guarda un token privado separado dentro de `state_dir`; el archivo `backend-connection.json` contiene sólo su referencia y la URL. Si la respuesta se pierde, genera otro código. Volver a vincular el mismo agente rota su token; no borres su estado para hacerlo. Durante el piloto no hay registro público ni QR.
+
+Alternativamente configura manualmente `backend.url` con el endpoint HTTPS completo de ingestión y `backend.token_file` con un token válido del agente en un archivo separado, también 0600/0640. La configuración explícita tiene prioridad sobre una vinculación guardada. No introduzcas credenciales en la URL. Se valida el certificado TLS, no se siguen redirecciones y no hay opción para desactivar esa validación. El token se relee para permitir rotación sin reiniciar. El permiso `allow_http_loopback` sólo habilita HTTP a una IP loopback para pruebas locales; nunca a servidores LAN o internet.
+
+El [contrato del backend](docs/backend-contract.md) describe el protocolo implementado. No basta con apuntar a una página web o webhook arbitrario: se requiere la API con confirmación durable.
 
 ## Límites de almacenamiento y eventos
 
@@ -126,6 +137,6 @@ Se soportan hasta 16 fuentes y 64 UPS por fuente; el caché de última lectura s
 4. Simular falta de conexión a NUT: valores congelados, fecha original y un evento de servidor inaccesible tras el umbral.
 5. Restablecer NUT: lectura nueva y un evento de reconexión.
 6. En una prueba eléctrica controlada por el usuario, observar OL → OB → OL y batería baja si se puede probar con seguridad. El agente no provoca esos cambios.
-7. Una vez disponible el backend, probar pérdida de internet, reenvío y deduplicación. Después integrar la app móvil y las notificaciones push.
+7. Probar pérdida de internet, reenvío y deduplicación contra el backend del piloto. Después integrar la app móvil y las notificaciones push.
 
 Referencias: [protocolo oficial NUT](https://networkupstools.org/docs/developer-guide.chunked/net-protocol.html), [Go](https://go.dev/doc/install), [systemd](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html).

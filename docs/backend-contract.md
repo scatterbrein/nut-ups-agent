@@ -1,6 +1,6 @@
-# Contrato de ingestión v1 — propuesto para el futuro backend
+# Contrato de ingestión v1 — agente y backend del piloto
 
-Este contrato está implementado **en el emisor del agente**, con receptores simulados en pruebas. No existe todavía un backend público, un emparejamiento móvil ni notificaciones APNs. No se usan las páginas de soporte/privacidad como receptor.
+Implementado en el emisor Go y en el [backend PHP/SQLite](../backend/README.md) bajo `https://ups.omstudioit.com/api/v1/ingest`, con pruebas locales y por HTTPS. La vinculación del agente usa códigos temporales; todavía no hay emparejamiento móvil ni APNs. Las páginas de soporte/privacidad conservan su propósito.
 
 ## Transporte e identidad
 
@@ -12,7 +12,7 @@ Authorization: Bearer <token individual del agente>
 Idempotency-Key: <SHA-256 del agent_id y la lista ordenada de message IDs>
 ```
 
-`agent_id` es un UUID generado una sola vez y conservado en disco. **No autentica por sí mismo:** el backend debe validar el token, su revocación, el agente autorizado y el usuario propietario antes de aceptar datos. Nunca confiar en un `agent_id` recibido para decidir la cuenta. El futuro emparejamiento deberá generar ese token y guardarlo en un archivo privado.
+`agent_id` es un UUID generado una sola vez y conservado en disco. **No autentica por sí mismo:** el backend valida el token, su revocación, el agente autorizado y el usuario propietario antes de aceptar datos. Nunca confiar en un `agent_id` recibido para decidir la cuenta. La vinculación genera ese token y el agente lo guarda en un archivo privado.
 
 `source_id` es SHA-256 de un array JSON `[id_configurado, host_normalizado, puerto]`. `device_id` es SHA-256 de `[source_id, ups_key]`. Los hashes evitan incluir el host privado en la petición; no son un mecanismo de autenticación. Cambiar el endpoint del NUT crea otra identidad. Una descripción o modelo comercial no identifica un UPS.
 
@@ -95,7 +95,7 @@ El emisor conserva todos los mensajes no confirmados, acepta confirmaciones parc
 
 ## Pasos siguientes
 
-1. Backend autenticado y pruebas de contrato utilizando este emisor.
-2. Flujo sencillo de vinculación/QR, revocación y distribución segura de paquetes/actualizaciones.
+1. Prueba física Raspberry Pi con el backend del piloto; la validación automatizada usa NUT simulado.
+2. Flujo móvil de acceso/vinculación/QR, recuperación de credenciales y distribución segura de actualizaciones.
 3. Fuente remota opcional en iOS, conservando el modo local actual.
 4. APNs y gestión de permisos. Los widgets conservan los límites de actualización impuestos por iOS.

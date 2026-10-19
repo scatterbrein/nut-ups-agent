@@ -91,3 +91,14 @@ func TestNonRegularSecretCannotBlockPolling(t *testing.T) {
 		t.Fatal("FIFO accepted as a secret file")
 	}
 }
+
+func TestNonRegularPairedSettingsCannotBlockStartup(t *testing.T) {
+	c := validConfig()
+	c.StateDir = t.TempDir()
+	if err := syscall.Mkfifo(filepath.Join(c.StateDir, "backend-connection.json"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.LoadPairedConnection(); err == nil {
+		t.Fatal("FIFO accepted as paired settings")
+	}
+}

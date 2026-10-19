@@ -431,6 +431,7 @@ func (s *Store) Stats() (int, uint64) {
 	defer s.mu.Unlock()
 	return len(s.data.Pending), s.data.DroppedMessages
 }
+func (s *Store) AgentID() string { s.mu.Lock(); defer s.mu.Unlock(); return s.data.AgentID }
 func (d Data) Summary() any {
 	return struct {
 		AgentID  string            `json:"agent_id"`

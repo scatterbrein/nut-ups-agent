@@ -3,3 +3,8 @@
 /config.local.json
 /state/
 *.secret
+/backend/config/local.php
+/backend/var/
+/backend/tests/output/
+/backend/dist/
+__pycache__/

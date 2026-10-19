@@ -1,0 +1,17 @@
+CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+INSERT INTO meta VALUES('schema','1');
+CREATE TABLE workspaces(id TEXT PRIMARY KEY, name TEXT NOT NULL, owner_hash TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL);
+CREATE TABLE agents(id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, name TEXT NOT NULL, token_hash TEXT UNIQUE, created_at INTEGER NOT NULL, revoked_at INTEGER, last_seen INTEGER, last_sequence INTEGER NOT NULL DEFAULT 0, last_recorded_at INTEGER);
+CREATE INDEX agents_workspace ON agents(workspace_id);
+CREATE TABLE pairings(code_hash TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, name TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER);
+CREATE TABLE messages(agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE, id TEXT NOT NULL, sequence INTEGER NOT NULL, payload_hash TEXT NOT NULL, received_at INTEGER NOT NULL, PRIMARY KEY(agent_id,id), UNIQUE(agent_id,sequence));
+CREATE INDEX messages_age ON messages(received_at);
+CREATE TABLE sources(agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE, id TEXT NOT NULL, name TEXT NOT NULL, connection TEXT NOT NULL, error_code TEXT, inventory_json TEXT, unavailable_json TEXT, sequence INTEGER NOT NULL, recorded_at INTEGER NOT NULL, PRIMARY KEY(agent_id,id));
+CREATE TABLE devices(agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE, id TEXT NOT NULL, source_id TEXT NOT NULL, ups_key TEXT NOT NULL, reading_json TEXT NOT NULL, observed_at INTEGER NOT NULL, reading_sequence INTEGER NOT NULL, state_sequence INTEGER NOT NULL, stale INTEGER NOT NULL, PRIMARY KEY(agent_id,id), UNIQUE(agent_id,source_id,ups_key));
+CREATE TABLE samples(id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE, device_id TEXT NOT NULL, sample_key TEXT NOT NULL, reading_json TEXT NOT NULL, observed_at INTEGER NOT NULL, sequence INTEGER NOT NULL, UNIQUE(agent_id,device_id,sample_key));
+CREATE INDEX samples_lookup ON samples(agent_id,device_id,observed_at,id);
+CREATE INDEX samples_age ON samples(observed_at);
+CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT, agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE, event_id TEXT NOT NULL, event_json TEXT NOT NULL, observed_at INTEGER NOT NULL, UNIQUE(agent_id,event_id));
+CREATE INDEX events_lookup ON events(agent_id,observed_at,id);
+CREATE INDEX events_age ON events(observed_at);
+CREATE TABLE rates(key TEXT NOT NULL, window INTEGER NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(key,window));

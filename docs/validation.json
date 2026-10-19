@@ -1,18 +1,67 @@
 {
-  "validated_at": "2026-10-19T19:06:05.236626+00:00",
-  "agent_version": "0.1.0",
-  "toolchain": "go version go1.27.2 darwin/arm64",
+  "validated_at": "2026-10-19T22:54:32.239212+00:00",
+  "agent_version": "0.2.0",
+  "toolchain": "go1.27.2 darwin/arm64",
   "tests": {
-    "root_tests_passed": 23,
-    "leaf_scenarios_passed": 36,
-    "passed_including_parent_subtests": 40,
+    "root_tests_passed": 26,
+    "leaf_scenarios_passed": 43,
+    "passed_including_parent_subtests": 48,
     "failed": 0,
-    "race_detector": true,
-    "output": "/private/tmp/ups-agent-tests.jsonl"
+    "race_detector": true
+  },
+  "backend_unit": {
+    "passed": 20,
+    "failed": 0,
+    "scenarios": [
+      "bootstrap is authenticated and one-time",
+      "separate roles and private state",
+      "tenant isolation for state history events and revocation",
+      "pairings expire and cannot be reused or taken over",
+      "invalid pairing attempts consume rate budget",
+      "Go-compatible receipt power estimate and optional metrics",
+      "measured power takes priority",
+      "duplicate retries do not duplicate history or events",
+      "mutated message or sequence is rejected",
+      "batch rollback is all or nothing",
+      "credentials and unknown variables never enter storage",
+      "wrong agent and device identities are rejected",
+      "out-of-order history never rolls back current state",
+      "offline snapshots preserve timestamp and freeze metrics",
+      "missing heartbeat and clock skew mark data stale without fabricating outage",
+      "short power transitions survive minute history downsampling",
+      "history pagination and bounded queries",
+      "revoked and rotated credentials stop ingestion",
+      "retention excludes expired history and permits latest cached reading",
+      "workspace deletion cascades and invalidates credentials"
+    ]
+  },
+  "backend_http_integration": {
+    "passed": 6,
+    "failed": 0,
+    "scenarios": [
+      "HTTP adapter authentication, content type and private cache headers",
+      "Real Go binary pairs with PHP and saves separate private credentials",
+      "NUT to Go queue to PHP durable receipt and private state",
+      "Power loss, low battery and restoration events from real agent",
+      "Frozen offline state, thresholded outage and one reconnection",
+      "Remote revocation rejects upload without losing pending local readings"
+    ]
+  },
+  "backend_hosted_integration": {
+    "passed": 6,
+    "failed": 0,
+    "scenarios": [
+      "Hosted HTTPS API healthy; private noncacheable authentication enforced",
+      "Real Go pairing and synthetic NUT upload; other owner cannot read the agent",
+      "Energy events and frozen last known state; exactly one loss and reconnect event",
+      "Durable acknowledgement is idempotent; short event history is retained",
+      "Revocation blocks uploads without deleting the local pending queue",
+      "Synthetic spaces and credentials removed; operator space preserved"
+    ]
   },
   "go_vet": "passed",
-  "shell_syntax": "passed",
-  "macos_cli_version_config_once_status": "passed",
+  "php_version_tested": "8.3.35",
+  "php_python_syntax": "passed",
   "linux_cross_compilation": [
     "arm64",
     "amd64",
@@ -22,68 +71,96 @@
   "hardware_write_commands_sent": false,
   "real_nut_server_tested": false,
   "raspberry_pi_physical_validation": "pending",
-  "backend_deployed": false,
+  "backend_deployed": true,
+  "backend_url": "https://ups.omstudioit.com/api/v1",
+  "existing_website_routes_unchanged": 8,
+  "direct_php_and_config_access": "403",
   "mobile_remote_integration": false,
+  "apns_implemented": false,
   "ios_app_modified": false,
-  "server_installation_performed": false,
+  "server_agent_installation_performed": false,
   "artifacts": [
     {
-      "path": "dist/nut-ups-agent-linux-amd64",
-      "bytes": 6992032,
-      "sha256": "72d671eb8d3db3db0fd5a3c99e9bfd47590fa3314588b760b6f051c23cda336e"
-    },
-    {
-      "path": "dist/nut-ups-agent-linux-amd64-0.1.0.tar.gz",
-      "bytes": 2965589,
-      "sha256": "47df42d14735c6ad7b837f1423587459b71fc6f2d4ce5f0b9424678db909b69e"
-    },
-    {
       "path": "dist/nut-ups-agent-linux-arm64",
-      "bytes": 6422688,
-      "sha256": "32aad265143401e5693b37a4d18e148edfbc4db2aa9bc80dcc4923a35a139bec"
+      "bytes": 6684832,
+      "sha256": "3852921542817a0e939a9c4699c6d59f12e3390383d48214b485e6478a710ca2"
     },
     {
-      "path": "dist/nut-ups-agent-linux-arm64-0.1.0.tar.gz",
-      "bytes": 2663380,
-      "sha256": "6dc28729adbb4bb2bba8bcfd867a10270932c1c6bc93b128c51486c79d03c48d"
+      "path": "dist/nut-ups-agent-linux-amd64",
+      "bytes": 7258272,
+      "sha256": "3815ed4226a0faa35c2d8435bd9e470da77ad242fa7a5415da32038cc3011c4d"
     },
     {
       "path": "dist/nut-ups-agent-linux-armv7",
-      "bytes": 6946976,
-      "sha256": "17ec2bda450914bf248cd4416ee4a347bea3392eeedf5993c3f1851e4846ae8a"
+      "bytes": 7209120,
+      "sha256": "896c45a2aeb3cc4e703c9943709966d9282286768030589afb77a5a8f053dc56"
     },
     {
-      "path": "dist/nut-ups-agent-linux-armv7-0.1.0.tar.gz",
-      "bytes": 2876966,
-      "sha256": "7bc6019ec7e8807bd181e08d7dc234534621507ff4765314a9df7315b4ecbb28"
+      "path": "dist/nut-ups-agent-linux-amd64-0.2.0.tar.gz",
+      "bytes": 3079175,
+      "sha256": "64fc9bb8870242c123ed46ca221f747c7265ea58ce9db35b8748448197361a9a"
+    },
+    {
+      "path": "dist/nut-ups-agent-linux-arm64-0.2.0.tar.gz",
+      "bytes": 2767669,
+      "sha256": "936d7505d1a5b36df44e9e42ec5e5572a120b0cf6c6c34c3143a1fcc4b3a06b6"
+    },
+    {
+      "path": "dist/nut-ups-agent-linux-armv7-0.2.0.tar.gz",
+      "bytes": 2985996,
+      "sha256": "f5d8d5f5ebfa352468cc81094cc13915e1c17a96e3033b12d3475c0448622b56"
+    },
+    {
+      "path": "dist/nut-ups-backend-0.2.0.zip",
+      "bytes": 20423,
+      "sha256": "b15a5e12b8f6ecb6c6e2e7622e9d49ecc73ed83fb42013e66a6688c22067b5d2"
     }
   ],
+  "shell_syntax": "passed",
   "source_sha256": {
-    ".gitignore": "eaa6192a067cff3d4e9cd2641acf5b2436dc208a59fdab1e2ff1afcc28458381",
-    "README.md": "9ddfc1eb93c59422541f7f155b0897eeac909ec36ea3a27b5532df6d74366069",
-    "cmd/nut-ups-agent/main.go": "06a0fb569657c5cfa0bcffa156e47fe1c14756481435368bfc3b58d53b22a7b9",
+    ".gitignore": "5fdcba667fbe0976584780e0aad070b58b1c4e9f890277ef9c068b04757caa63",
+    "README.md": "98b6f1203931142b9001f44de2389347728867860ada9dc77691985138feb1ff",
+    "backend/README.md": "626072da2c17622d220ab16512b3aca5bc723b2917b17a50b66a817c0d58bc25",
+    "backend/config/.gitignore": "240a3e0d37d2e86b614063f5347eb02d4f99ca6c254de6b82871ff8d95532a7d",
+    "backend/deploy/routes.htaccess": "78f0ebba7412ba4e9f0868e130c7030b24163c8a690761cd7d3338636b691f6b",
+    "backend/public/index.php": "dee3462bcdf9a678b0ce38ab50da1f7a1a1bfefe9f674ee99636ee627e969f16",
+    "backend/scripts/bundle.py": "c77c6531dec3275131be3f335ce4ff3f8f8d3482851fdcf8406e68bde2681131",
+    "backend/scripts/manage.py": "cf40a4ed8dfc66a79f61ff34ecca4ab77949bb9aaf8d2f05ef4fd612aeff2ee7",
+    "backend/src/App.php": "dde05b1d7129a19a6b75d6cfaa50d1564dcb590587843e057ae3828a0e790fc9",
+    "backend/src/Database.php": "f0365d9b9a1c95dd64740c11a037a656b89d752a2f140faa8c2619e95084f6e7",
+    "backend/src/Service.php": "cceccc182fc99975661b9c9f7e5743a420b9eb2bee50484be422d80829881fce",
+    "backend/src/Validate.php": "3da0e851fef6d0dba2e7c796b1f85e12b2dd749f21871262a4a6a7d7627e8b80",
+    "backend/src/schema.sql": "07afab53c819e10314f65890979f5a25a71f5bc5aaa32ec6a311391297707fdc",
+    "backend/tests/hosted_integration.py": "7237b9de3bf98586def481c2f260a9f25ade7219ea427e7d7566938c74240920",
+    "backend/tests/http_integration.py": "887ff530d82140e021f5e152aaa01cd4c0bdc1bdbf2b8ed346d422ba6a9d490f",
+    "backend/tests/router.php": "569a1eb60cc95435d2f7ba3e61005ec0d4d2ceb4d6a713919536b08ff1756e98",
+    "backend/tests/run.php": "83d1b12e1ff701ca0abcc4d76b9a7c17ebf5bddf70de0e338f7c5dd1310b6ab4",
+    "cmd/nut-ups-agent/main.go": "39a1e740283c6d9994af9049030e48899662f0b05ae09cb6a31dc70b36620594",
     "config.example.json": "e2001809ef77a1cdd653ec97ad66fbb76f221ecf897b96e53a75a5ee11d5c884",
-    "docs/backend-contract.md": "8faceb45efac808ad496cbda31bdaeec2b1464cbf64fb04dcd8c0fef98889b4e",
+    "docs/backend-contract.md": "c1d47f30d384670eaea4c34012c7a6117fed844d0ac6fb3736a9aefa7cd9089e",
     "go.mod": "e1b11ac4157ec11c2690e1ed1813f8ea15eb765af6f33ec060275d6aefc5838b",
     "internal/config/config.go": "fb5f0c01b5becdc886f3dcb36d4a5ca19c2f3576a1d9abd204ed993208f1793e",
-    "internal/config/config_test.go": "a28b48f026f2c2e9aa58a19384726a7b348ec0a096fc2547d6b6fe511dda0c51",
+    "internal/config/config_test.go": "917d6c3d2c774e20b25b31850b288494ea66925b5479ddf3fb7aa9cb801f8530",
+    "internal/config/connection.go": "f73ac31e39fffb550547e9fdec70ae4a67132e7e24e92e102d09d47c00ef24a4",
     "internal/model/model.go": "d0323cbbc44d836a3ba452def39da80c4378c2e5d80c9a1c0c0e5056b46656c2",
     "internal/model/model_test.go": "c3718b274850800ae80bbacc5f987a02acbcec09fcfb9eeec4ad05abc89c9138",
     "internal/nut/client.go": "9b24c638ad86ab0f4ad0792ecc358b6d41a861c725f08cde60f24e2cc49a1fbe",
     "internal/nut/client_test.go": "ad4efe17b027794ce580ab9b4abea9a28339db0e695c97411cd75c916e40776d",
+    "internal/pairing/pairing.go": "1d7302cf264e935c0873fa839fba2cdad589e10183a7976f1a23958778a100a3",
+    "internal/pairing/pairing_test.go": "af0f01a388af50ee7fc200d937b3ed29346dd72c584a2f16a3d283c6ee57c733",
     "internal/runner/runner.go": "ceeaf84e6cf806bd698a85b09179796fc7843b53a7c680e155befdece1930aed",
     "internal/runner/runner_test.go": "63fd86765f23b1049cce7b5be7632d66284202d6be63109812c993fa7983440e",
     "internal/state/events.go": "30d47b03a79a475c6d8078a452ea2c08270abf20adf482e11c7b666f9b1c4519",
     "internal/state/journal.go": "be8025b8c5060976cdc6fa3656acc11050829669a4ba08c984cdf63ecb57dd01",
     "internal/state/journal_test.go": "be193853b3cc6a33b9fd1a3e43003e04223c693174e1c7a045933bf775e73cdd",
     "internal/state/lock_unix.go": "9ca29d7a1e42dc385713a4157844180339c90c9a8a0a69e29f7708fdea479659",
-    "internal/state/store.go": "f7f30837936e5cd45ceccdd0c66e531ce600c6d94632d11d6b03b7c2300f26c4",
+    "internal/state/store.go": "65a19030b2f2cc44e7f8a81bef271d91b08d124a33ad809073a201f2348c31cc",
     "internal/state/store_test.go": "eb929be7b30b36da81b69d60f27edcd1d145715425fab99ca98a1dfaf1245f4e",
     "internal/uplink/sender.go": "8d3933d6ecb72aae57b9e924b27e33dfda431d20bab5d2f7ba69d7c4f2a01a3b",
     "internal/uplink/sender_test.go": "c936033b2e61f804d8e4eddc1ce11ed6d5a7407631c02d2f8c2f5651ac56b7d1",
     "packaging/nut-ups-agent.service": "14b0e86f22d4d3d509167c04005b60ee341d6ca045f557831c46896ee4c5ed6f",
-    "scripts/build.sh": "e318a2870daba434647aa949fff88f892e9910992b1375c9c6b0a611a36b5500",
+    "scripts/build.sh": "84ed10f55d6f5ae62b843a3d1cd0f1ee1f2e14157bb9f366a3863b23902e7f10",
     "scripts/install.sh": "ee7a2e564d08807c57a20f26fbefcc6836fbbeb7b7ba16f8bdc2fb74bb82d960",
-    "scripts/package.sh": "d4b6b8e5d74ec8a4fb93a4632d7d827efae165bc4aaa19e1528dd2feb4b2faea"
+    "scripts/package.sh": "07d0fb319434188959027b2cc3cb07cbf9efbb1814b21d004364f6ea2e5403bf"
   }
 }
