@@ -11,6 +11,9 @@ def main():
     sub=parser.add_subparsers(dest='action',required=True)
     pair=sub.add_parser('pair');pair.add_argument('--name',required=True)
     sub.add_parser('agents')
+    sub.add_parser('pair-phone')
+    sub.add_parser('phones')
+    phone=sub.add_parser('revoke-phone');phone.add_argument('--session',required=True,type=uuid.UUID)
     for action in ['state','events','history','revoke']:
         command=sub.add_parser(action);command.add_argument('--agent',required=True,type=uuid.UUID)
         if action=='history':command.add_argument('--device',required=True)
@@ -32,6 +35,9 @@ def main():
     if args.action=='pair':path='/pairings';method='POST';body={'name':args.name}
     elif admin:path='/admin/workspaces';method='POST';body={'name':args.name}
     elif args.action=='agents':path='/agents'
+    elif args.action=='pair-phone':path='/mobile-pairings';method='POST';body={}
+    elif args.action=='phones':path='/mobile-sessions'
+    elif args.action=='revoke-phone':path='/mobile-sessions/'+str(args.session);method='DELETE';body={}
     else:
         path='/agents/'+str(args.agent)+'/'+args.action
         if args.action=='revoke':method='POST';body={}

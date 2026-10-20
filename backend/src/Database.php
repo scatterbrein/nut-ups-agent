@@ -17,15 +17,20 @@ final class Database {
         $this->pdo = new \PDO('sqlite:' . $directory . '/monitor.sqlite', null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION, \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC]);
         $this->pdo->exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; PRAGMA synchronous=FULL;');
         $version = (int)$this->pdo->query('PRAGMA user_version')->fetchColumn();
-        if ($version > 1) { throw new \RuntimeException('unsupported_schema'); }
-        if ($version === 0) {
+        if ($version > 2) { throw new \RuntimeException('unsupported_schema'); }
+        if ($version < 2) {
             $lock = fopen($directory . '/schema.lock', 'c');
             if (!$lock || !flock($lock, LOCK_EX)) { throw new \RuntimeException('storage_unavailable'); }
             try {
-                if ((int)$this->pdo->query('PRAGMA user_version')->fetchColumn() === 0) {
+                if ((int)$this->pdo->query('PRAGMA user_version')->fetchColumn() < 2) {
+                    if ((int)$this->pdo->query('PRAGMA user_version')->fetchColumn() === 1 && !file_exists($directory.'/monitor-before-v2.sqlite')) {
+                        $this->pdo->exec('VACUUM INTO '.$this->pdo->quote($directory.'/monitor-before-v2.sqlite'));
+                    }
                     $this->pdo->beginTransaction();
-                    $this->pdo->exec(file_get_contents(__DIR__ . '/schema.sql'));
-                    $this->pdo->exec('PRAGMA user_version=1');
+                    if ((int)$this->pdo->query('PRAGMA user_version')->fetchColumn() === 0) {
+                        $this->pdo->exec(file_get_contents(__DIR__ . '/schema.sql'));
+                    }
+                    $this->pdo->exec('CREATE TABLE mobile_pairings(code_hash TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL,used_at INTEGER); CREATE TABLE mobile_sessions(id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL); CREATE INDEX mobile_owner ON mobile_sessions(workspace_id); PRAGMA user_version=2;');
                     $this->pdo->commit();
                 }
             } catch (\Throwable $error) {
@@ -69,6 +74,8 @@ final class Database {
             $this->query("DELETE FROM $table WHERE rowid IN (SELECT rowid FROM $table WHERE $column < ? LIMIT 10000)", [$now - 7*86400]);
         }
         $this->query('DELETE FROM pairings WHERE expires_at < ?', [$now-86400]);
+        $this->query('DELETE FROM mobile_pairings WHERE expires_at < ?', [$now-86400]);
+        $this->query('DELETE FROM mobile_sessions WHERE expires_at < ?', [$now-86400]);
         $this->query('DELETE FROM rates WHERE window < ?', [$now-86400]);
         $this->query("INSERT INTO meta(key,value) VALUES('cleanup_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [(string)$now]);
     }

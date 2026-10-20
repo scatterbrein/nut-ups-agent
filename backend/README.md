@@ -2,7 +2,7 @@
 
 PHP 8.3 + PDO SQLite, sin framework, Composer, contenedores, proceso permanente ni base de datos externa. Se ejecuta bajo demanda en el alojamiento existente. URL: **https://ups.omstudioit.com/api/v1**. El sitio, soporte y privacidad conservan sus rutas. El modo local de iOS no depende de este servicio.
 
-Este componente recibe al agente y ofrece datos autenticados para integrar después el cliente móvil. **La app publicada y la 1.1 todavía no consultan esta API. No incluye APNs, cuentas públicas, recuperación de acceso, QR ni panel web.** La primera etapa es un piloto con espacios privados creados por el operador; no activar su distribución pública como modo remoto terminado.
+Este componente recibe al agente y ofrece datos autenticados para integrar después el cliente móvil. **La app publicada y la 1.1 no consultan esta API. La 1.2 en desarrollo incorpora la fuente remota y vinculación de iPhone por código. No incluye APNs, cuentas públicas, recuperación de acceso, QR ni panel web.** La primera etapa es un piloto con espacios privados creados por el operador; no activar su distribución pública como modo remoto terminado.
 
 ## Funcionalidad
 
@@ -100,4 +100,22 @@ go test -race ./...
 go vet ./...
 ```
 
-20 escenarios de contrato/seguridad y 6 de integración con el binario real. Las pruebas utilizan un NUT simulado y no ejecutan controles del UPS. El despliegue se verifica adicionalmente por HTTPS con un espacio sintético, que se elimina después. Sigue pendiente la instalación física del agente en Raspberry Pi.
+24 escenarios de contrato/seguridad y 6 de integración con el binario real. Las pruebas utilizan un NUT simulado y no ejecutan controles del UPS. El despliegue se verifica adicionalmente por HTTPS con un espacio sintético, que se elimina después. Sigue pendiente la instalación física del agente en Raspberry Pi.
+
+## Vinculación de iPhone — desarrollo 1.2
+
+El operador genera un código de teléfono independiente del código del agente:
+
+```sh
+python3 backend/scripts/manage.py --credentials /ruta/privada/operator.json pair-phone
+python3 backend/scripts/manage.py --credentials /ruta/privada/operator.json phones
+python3 backend/scripts/manage.py --credentials /ruta/privada/operator.json revoke-phone --session UUID
+```
+
+En iOS: Connections → Connect Remote Agent → Phone link code → Link This iPhone → elegir agente → Save. Sin agente instalado, el mismo formulario puede generar un código para el agente; instalarlo y vincularlo antes de guardar la conexión de iPhone. No introducir tokens de administrador ni contraseñas NUT en iOS remoto.
+
+Los códigos de teléfono duran 10 minutos y sólo se usan una vez. Cada iPhone recibe un token `ups_mobile_` individual, de lectura, guardado en Keychain; puede generar un código de agente o revocar su propia sesión, pero no borrar el espacio, revocar agentes o vincular otros teléfonos. Caduca a los 90 días; el operador puede revocarlo antes. Máximo 20 sesiones vigentes por espacio.
+
+Endpoints adicionales: POST `/mobile-pairings` (propietario); POST `/mobile-pairings/claim` con `{code}` (público con prueba del código); GET `/mobile-sessions` y DELETE `/mobile-sessions/{id}` (propietario); DELETE `/mobile-session` (el propio iPhone). La API v1 continúa compatible con el agente 0.2.0. La migración SQLite 1→2 sólo añade tablas; crea una copia consistente `monitor-before-v2.sqlite` en la carpeta privada antes de actualizar una base existente.
+
+El ZIP de backend de la prerelease 0.2.0 es anterior a las sesiones móviles y al esquema 2. No instalarlo sobre este despliegue: para actualizar usar el código actual de main y regenerar el bundle, conservando la configuración y la base privadas. Los paquetes del agente 0.2.0 sí siguen siendo compatibles.

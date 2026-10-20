@@ -16,7 +16,11 @@ final class Service {
     public function rate(string $key, int $limit, int $now): void {
         $this->db->transaction(fn()=>$this->db->rate(hash('sha256',$key),$limit,$now));
     }
-    public function authenticate(string $token, string $role): array {
+    public function authenticate(string $token, string $role, ?int $now=null): array {
+        if ($role==='owner' && preg_match('/^ups_mobile_[A-Za-z0-9_-]{43}$/D',$token)) {
+            $row=$this->db->row('SELECT w.*,s.id AS mobile_session_id FROM mobile_sessions s JOIN workspaces w ON w.id=s.workspace_id WHERE s.token_hash=? AND s.expires_at>?',[hash('sha256',$token),$now??time()]);
+            if (!$row) { throw new ApiError(401,'unauthorized'); } return $row;
+        }
         if (!preg_match('/^ups_'.preg_quote($role,'/').'_[A-Za-z0-9_-]{43}$/D',$token)) { throw new ApiError(401,'unauthorized'); }
         $hash=hash('sha256',$token);
         $row=match($role) {
@@ -71,6 +75,25 @@ final class Service {
     public function ownedAgent(string $workspace,string $agent): array {
         Validate::id($agent);$row=$this->db->row('SELECT * FROM agents WHERE id=? AND workspace_id=?',[$agent,$workspace]);
         if (!$row) { throw new ApiError(404,'not_found'); } return $row;
+    }
+
+    public function mobilePairing(string $workspace,int $now): array {
+        $code=strtoupper(bin2hex(random_bytes(8)));
+        $this->db->transaction(fn()=>$this->db->query('INSERT INTO mobile_pairings VALUES(?,?,?,NULL)',[hash('sha256',$code),$workspace,$now+600]));
+        return ['pairing_code'=>implode('-',str_split($code,4)),'expires_at'=>gmdate('Y-m-d\TH:i:s\Z',$now+600)];
+    }
+    public function claimMobile(string $code,int $now): array {
+        $code=strtoupper(str_replace('-','',$code));
+        if (!preg_match('/^[0-9A-F]{16}$/D',$code)) { throw new ApiError(401,'invalid_or_expired_pairing'); }
+        return $this->db->transaction(function() use($code,$now): array {
+            $pair=$this->db->row('SELECT * FROM mobile_pairings WHERE code_hash=? AND used_at IS NULL AND expires_at>?',[hash('sha256',$code),$now]);
+            if (!$pair) { throw new ApiError(401,'invalid_or_expired_pairing'); }
+            if ((int)$this->db->query('SELECT COUNT(*) FROM mobile_sessions WHERE workspace_id=? AND expires_at>?',[$pair['workspace_id'],$now])->fetchColumn()>=20) { throw new ApiError(409,'device_limit'); }
+            $id=self::uuid();$token=self::token('mobile');$expires=$now+90*86400;
+            $this->db->query('INSERT INTO mobile_sessions VALUES(?,?,?,?,?)',[$id,$pair['workspace_id'],hash('sha256',$token),$now,$expires]);
+            $this->db->query('UPDATE mobile_pairings SET used_at=? WHERE code_hash=?',[$now,hash('sha256',$code)]);
+            return ['session_id'=>$id,'workspace_id'=>$pair['workspace_id'],'access_token'=>$token,'expires_at'=>gmdate('Y-m-d\TH:i:s\Z',$expires)];
+        });
     }
     public function revoke(string $workspace,string $agent,int $now): void {
         $this->db->transaction(function() use($workspace,$agent,$now): void { $this->ownedAgent($workspace,$agent);$this->db->query('UPDATE agents SET token_hash=NULL,revoked_at=? WHERE id=?',[$now,$agent]); });

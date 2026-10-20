@@ -20,6 +20,10 @@ final class App {
             return $this->service->bootstrap($token,Validate::text($body['name']??null,80),$now);
         }
         if (!$this->service->initialized()) { throw new ApiError(503,'setup_required'); }
+        if ($method==='POST' && $path==='/mobile-pairings/claim') {
+            $this->service->rate('mobile-claim-global',100,$now);$this->service->rate('mobile-claim:'.$peer,8,$now);
+            Validate::keys($body,['code']);return $this->service->claimMobile(Validate::text($body['code']??null,32),$now);
+        }
         if ($method==='POST' && $path==='/pairings/claim') {
             $this->service->rate('claim-global',100,$now);
             $this->service->rate('claim:'.$peer,8,$now);
@@ -27,9 +31,20 @@ final class App {
             return $this->service->claim(Validate::text($body['code']??null,32),Validate::id($body['agent_id']??null),$now);
         }
         $role=$path==='/ingest'?'agent':(str_starts_with($path,'/admin/')?'admin':'owner');
-        try { $identity=$this->service->authenticate($token,$role); }
+        try { $identity=$this->service->authenticate($token,$role,$now); }
         catch (ApiError $e) { $this->service->rate('auth-failed:'.$peer,60,$now);throw $e; }
         $this->service->rate($role.':'.hash('sha256',$token),120,$now);
+        if (isset($identity['mobile_session_id'])) {
+            if ($method==='DELETE' && $path==='/mobile-session') {
+                Validate::keys($body,[]);$this->service->db->transaction(fn()=>$this->service->db->query('DELETE FROM mobile_sessions WHERE id=?',[$identity['mobile_session_id']]));return ['deleted'=>true];
+            }
+            if ($method!=='GET' && !($method==='POST' && $path==='/pairings')) { throw new ApiError(403,'read_only_mobile_session'); }
+        }
+        if ($method==='POST' && $path==='/mobile-pairings') { Validate::keys($body,[]);return $this->service->mobilePairing($identity['id'],$now); }
+        if ($method==='GET' && $path==='/mobile-sessions') { return ['sessions'=>$this->service->db->query('SELECT id,created_at,expires_at FROM mobile_sessions WHERE workspace_id=?',[$identity['id']])->fetchAll()]; }
+        if ($method==='DELETE' && preg_match('~^/mobile-sessions/([0-9a-f-]{36})$~D',$path,$m)) {
+            Validate::keys($body,[]);$this->service->db->transaction(fn()=>$this->service->db->query('DELETE FROM mobile_sessions WHERE id=? AND workspace_id=?',[$m[1],$identity['id']]));return ['deleted'=>true];
+        }
         if ($method==='POST' && $path==='/ingest') { return $this->service->ingest($identity['id'],$body,$now,hash('sha256',$token)); }
         if ($method==='POST' && $path==='/admin/workspaces') {
             Validate::keys($body,['name']);$name=Validate::text($body['name']??null,80);
