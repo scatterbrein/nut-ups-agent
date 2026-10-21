@@ -10,17 +10,20 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"omstudioit.com/nut-ups-agent/internal/config"
+	"omstudioit.com/nut-ups-agent/internal/onboarding"
 	"omstudioit.com/nut-ups-agent/internal/pairing"
 	"omstudioit.com/nut-ups-agent/internal/runner"
 	"omstudioit.com/nut-ups-agent/internal/state"
 )
 
-var version = "0.2.0"
+var version = "0.4.0"
 
 func main() { os.Exit(run()) }
 func run() int {
+	setup := flag.Bool("setup", false, "Prepare optional remote access and print the installation code")
 	path := flag.String("config", "/etc/nut-ups-agent/config.json", "Configuration file")
 	once := flag.Bool("once", false, "Read once, persist and attempt one upload")
 	check := flag.Bool("check-config", false, "Validate configuration without network access")
@@ -87,12 +90,49 @@ func run() int {
 		fmt.Println("Agent paired. Its private token was saved separately. Start or restart the agent to send readings.")
 		return 0
 	}
-	log.Info("NUT UPS agent started", "version", version, "sources", len(c.Sources), "remote_delivery_enabled", c.Backend.URL != "")
-	r := runner.Runner{Config: c, Store: store, Log: log}
-	err = r.Run(ctx, *once)
-	if err != nil && !errors.Is(err, context.Canceled) {
-		log.Error(err.Error())
-		return 1
+	if *setup {
+		installation, setupErr := onboarding.Prepare(ctx, c, store.AgentID())
+		if setupErr != nil {
+			log.Error(setupErr.Error())
+			return 1
+		}
+		fmt.Printf("Remote access is optional. In the iPhone app, connect to this NUT server, choose Enable Remote Access and enter: %s\nValid until %s. NUT passwords are not sent to the remote service.\n", installation.Code, time.Unix(installation.ExpiresAt, 0).Format(time.RFC3339))
+		return 0
 	}
-	return 0
+	for {
+		log.Info("NUT UPS agent started", "version", version, "sources", len(c.Sources), "remote_delivery_enabled", c.Backend.URL != "", "poll_seconds", c.PollSeconds, "upload_seconds", int(c.UploadInterval().Seconds()))
+		r := runner.Runner{Config: c, Store: store, Log: log}
+		runCtx, cancelRun := context.WithCancel(ctx)
+		linked := make(chan bool, 1)
+		if !*once {
+			go func() {
+				activated, setupErr := onboarding.Run(runCtx, c, store.AgentID())
+				if setupErr != nil && !errors.Is(setupErr, context.Canceled) {
+					log.Warn(setupErr.Error())
+				}
+				linked <- activated
+				if activated {
+					cancelRun()
+				}
+			}()
+		}
+		err = r.Run(runCtx, *once)
+		cancelRun()
+		select {
+		case activated := <-linked:
+			if activated && ctx.Err() == nil {
+				if err = c.LoadPairedConnection(); err != nil {
+					log.Error(err.Error())
+					return 1
+				}
+				continue
+			}
+		default:
+		}
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(err.Error())
+			return 1
+		}
+		return 0
+	}
 }

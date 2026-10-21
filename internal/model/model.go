@@ -34,6 +34,8 @@ type Event struct {
 	ObservedAt          time.Time `json:"observed_at"`
 	DisconnectedSeconds *float64  `json:"disconnected_seconds,omitempty"`
 	TimingUncertain     bool      `json:"timing_uncertain,omitempty"`
+	BatteryCharge       *float64  `json:"battery_charge,omitempty"`
+	ChargeThreshold     *float64  `json:"charge_threshold,omitempty"`
 }
 
 type SourceObservation struct {

@@ -59,13 +59,19 @@ func Claim(ctx context.Context, c config.Config, base, code, agentID string) err
 	if json.Unmarshal(body, &result) != nil || result.AgentID != agentID || result.Endpoint != base+"/ingest" || !regexp.MustCompile(`^ups_agent_[A-Za-z0-9_-]{43}$`).MatchString(result.AgentToken) {
 		return errors.New("pairing receipt does not match this agent or service")
 	}
+	return SaveConnection(c, result.Endpoint, result.AgentToken)
+}
+
+// SaveConnection commits a verified server receipt without replacing NUT settings.
+func SaveConnection(c config.Config, endpoint, token string) error {
+	var err error
 	old := c
 	_ = old.LoadPairedConnection()
 	tokenPath := filepath.Join(c.StateDir, "backend-token-"+model.NewID()+".secret")
-	if err = atomicWrite(tokenPath, []byte(result.AgentToken+"\n")); err != nil {
+	if err = atomicWrite(tokenPath, []byte(token+"\n")); err != nil {
 		return err
 	}
-	connection, _ := json.Marshal(config.PairedConnection{URL: result.Endpoint, TokenFile: tokenPath})
+	connection, _ := json.Marshal(config.PairedConnection{URL: endpoint, TokenFile: tokenPath})
 	if err = atomicWrite(filepath.Join(c.StateDir, "backend-connection.json"), connection); err != nil {
 		os.Remove(tokenPath)
 		return err

@@ -33,6 +33,7 @@ type Backend struct {
 type Config struct {
 	StateDir           string   `json:"state_dir"`
 	PollSeconds        int      `json:"poll_seconds"`
+	UploadSeconds      int      `json:"upload_seconds,omitempty"`
 	NUTTimeoutSeconds  int      `json:"nut_timeout_seconds"`
 	FailureThreshold   int      `json:"failure_threshold"`
 	LowBatteryPercent  float64  `json:"low_battery_percent"`
@@ -70,6 +71,13 @@ func (c *Config) Validate() error {
 	}
 	if c.PollSeconds < 1 || c.PollSeconds > 3600 || c.NUTTimeoutSeconds < 1 || c.NUTTimeoutSeconds > 60 || c.FailureThreshold < 1 || c.FailureThreshold > 20 {
 		return errors.New("invalid polling, timeout or failure threshold")
+	}
+	// Existing installations need no configuration migration.
+	if c.UploadSeconds == 0 {
+		c.UploadSeconds = 30
+	}
+	if c.UploadSeconds < 1 || c.UploadSeconds > 30 {
+		return errors.New("upload_seconds must be between 1 and 30")
 	}
 	if !(c.LowBatteryPercent > 0 && c.LowBatteryPercent <= 100) || !(c.VoltageDropPercent > 0 && c.VoltageDropPercent <= 80) {
 		return errors.New("invalid battery or voltage threshold")
@@ -133,6 +141,12 @@ func (c *Config) Validate() error {
 }
 
 func (c Config) PollInterval() time.Duration { return time.Duration(c.PollSeconds) * time.Second }
+func (c Config) UploadInterval() time.Duration {
+	if c.UploadSeconds == 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(c.UploadSeconds) * time.Second
+}
 
 // Files are separate from the JSON configuration, and their contents never enter telemetry.
 func ReadSecret(path string) (string, error) {

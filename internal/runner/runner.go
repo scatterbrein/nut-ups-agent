@@ -19,6 +19,7 @@ type Runner struct {
 	lastWarning     time.Time
 	lastDropped     uint64
 	lastDropWarning time.Time
+	uploadEvery     time.Duration // Tests may accelerate the independent upload clock.
 }
 
 func (r *Runner) Poll(ctx context.Context) error {
@@ -95,6 +96,7 @@ func (r *Runner) Run(ctx context.Context, once bool) error {
 	defer wg.Wait()
 	// Cancel before waiting for the uploader, including on local persistence failures.
 	defer cancel()
+	firstPoll := true
 	for {
 		if err := r.Poll(ctx); err != nil {
 			select {
@@ -110,10 +112,14 @@ func (r *Runner) Run(ctx context.Context, once bool) error {
 			}
 			return nil
 		}
-		select {
-		case wake <- struct{}{}:
-		default:
+		_, urgent := r.Store.UploadState()
+		if firstPoll || urgent {
+			select {
+			case wake <- struct{}{}:
+			default:
+			}
 		}
+		firstPoll = false
 		timer := time.NewTimer(r.Config.PollInterval())
 		select {
 		case <-ctx.Done():
@@ -140,40 +146,61 @@ func (r *Runner) sendOnce(ctx context.Context) error {
 func (r *Runner) upload(ctx context.Context, wake <-chan struct{}) error {
 	sender := uplink.New(r.Config.Backend)
 	failures := 0
+	interval := r.uploadEvery
+	if interval <= 0 {
+		interval = r.Config.UploadInterval()
+	}
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	attempted := false
 	for {
-		if ctx.Err() != nil {
-			return nil
-		}
-		batch := r.Store.Batch()
-		if len(batch) == 0 {
-			select {
-			case <-wake:
-				continue
-			case <-ctx.Done():
-				return nil
-			}
-		}
-		ids, err := sender.Send(ctx, batch)
-		if ctx.Err() != nil {
-			return nil
-		}
-		if err == nil {
-			if err = r.Store.Acknowledge(ids); err != nil {
-				return err
-			}
-			failures = 0
-			r.Log.Debug("Backend acknowledged UPS readings", "messages", len(ids))
-			continue
-		}
-		failures++
-		delay := uplink.Backoff(failures, err)
-		r.Log.Warn("Upload postponed; readings remain on this device", "reason", err.Error(), "retry_seconds", int(delay.Seconds()))
-		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
-			timer.Stop()
 			return nil
 		case <-timer.C:
+		case <-wake:
+			_, urgent := r.Store.UploadState()
+			// A queued wake may refer to an event already acknowledged in flight.
+			if attempted && !urgent {
+				continue
+			}
 		}
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		through, _ := r.Store.UploadState()
+		for through != 0 {
+			batch := r.Store.BatchThrough(through)
+			if len(batch) == 0 {
+				break
+			}
+			attempted = true
+			ids, err := sender.Send(ctx, batch)
+			if ctx.Err() != nil {
+				return nil
+			}
+			if err == nil {
+				if err = r.Store.Acknowledge(ids); err != nil {
+					return err
+				}
+				failures = 0
+				r.Log.Debug("Backend acknowledged UPS readings", "messages", len(ids))
+				continue
+			}
+			failures++
+			delay := uplink.Backoff(failures, err)
+			r.Log.Warn("Upload postponed; readings remain on this device", "reason", err.Error(), "retry_seconds", int(delay.Seconds()))
+			retry := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				retry.Stop()
+				return nil
+			case <-retry.C:
+			}
+		}
+		timer.Reset(interval)
 	}
 }

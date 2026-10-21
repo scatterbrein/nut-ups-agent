@@ -35,6 +35,34 @@ func record(t *testing.T, s *Store, r nut.Result, c config.Config, at time.Time)
 	}
 }
 
+func TestUploadSnapshotKeepsNewerReadingsQueuedAndFindsUrgentEvents(t *testing.T) {
+	c := settings(t.TempDir())
+	s, err := Open(c.StateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	at := time.Now().UTC()
+	record(t, s, result(c, "OL", "100", "125"), c, at)
+	through, urgent := s.UploadState()
+	if through != 1 || urgent {
+		t.Fatal("unexpected initial upload state")
+	}
+	record(t, s, result(c, "OL", "100", "125"), c, at.Add(3*time.Second))
+	record(t, s, result(c, "OB", "87", "125"), c, at.Add(6*time.Second))
+	batch := s.BatchThrough(through)
+	if len(batch) != 1 || batch[0].Sequence != through {
+		t.Fatal("new polls leaked into an in-flight cycle")
+	}
+	if err = s.Acknowledge([]string{batch[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	last, urgent := s.UploadState()
+	if last != 3 || !urgent || len(s.Batch()) != 2 {
+		t.Fatal("pending readings or urgent event were lost")
+	}
+}
+
 func TestOutagePersistenceFrozenReadingsAndRecovery(t *testing.T) {
 	dir := t.TempDir()
 	c := settings(dir)
@@ -112,6 +140,57 @@ func TestEnergyEventsDeduplicateAcrossRestart(t *testing.T) {
 	for _, kind := range []string{"on_battery", "power_restored", "low_battery", "voltage_drop"} {
 		if count(d, kind) != 1 {
 			t.Fatal(kind, d.RecentEvents)
+		}
+	}
+}
+
+func TestLowBatteryRequiresValidChargeAndIgnoresLBAndRuntime(t *testing.T) {
+	c := settings(t.TempDir())
+	at := time.Now().UTC()
+	for _, flags := range []string{"OL LB", "OB LB", "FSD", "OL"} {
+		for _, charge := range []string{"100", "", "unknown", "NaN", "-1", "101"} {
+			r := model.NewReading("source", "office", map[string]string{"ups.status": flags, "battery.charge": charge, "battery.charge.low": "10", "battery.runtime": "1"}, at)
+			_, events := observe(Device{}, r, c)
+			for _, event := range events {
+				if event.Kind == "low_battery" {
+					t.Fatal("status/runtime or invalid charge caused a low battery alert", flags, charge)
+				}
+			}
+		}
+	}
+	reading := model.NewReading("source", "office", map[string]string{"ups.status": "OL", "battery.charge": "10", "battery.charge.low": "10"}, at)
+	low, events := observe(Device{}, reading, c)
+	if len(events) != 1 || events[0].Kind != "low_battery" || events[0].BatteryCharge == nil || *events[0].BatteryCharge != 10 || *events[0].ChargeThreshold != 10 {
+		t.Fatal("missing charge evidence", events)
+	}
+	_, repeated := observe(low, reading, c)
+	if len(repeated) != 0 {
+		t.Fatal("repeated low charge alert")
+	}
+	reading.Variables["ups.status"] = "OL LB"
+	reading.Variables["battery.charge"] = "100"
+	healthy, events := observe(low, reading, c)
+	if healthy.LowBattery || len(events) != 0 {
+		t.Fatal("LB kept low charge latched after charge recovered")
+	}
+	reading.Variables["battery.charge"] = "9"
+	_, events = observe(healthy, reading, c)
+	if len(events) != 1 || events[0].Kind != "low_battery" {
+		t.Fatal("real low charge did not rearm")
+	}
+}
+
+func TestLowBatteryPercentageThresholdIsGenericAndIncludesZero(t *testing.T) {
+	c := settings(t.TempDir())
+	c.LowBatteryPercent = 25
+	for _, scenario := range []struct {
+		charge, threshold string
+		expected          float64
+	}{{"18", "20", 20}, {"18", "", 25}, {"0", "0", 0}} {
+		r := model.NewReading("source", "office", map[string]string{"ups.status": "OL", "battery.charge": scenario.charge, "battery.charge.low": scenario.threshold}, time.Now())
+		_, events := observe(Device{}, r, c)
+		if len(events) != 1 || events[0].Kind != "low_battery" || *events[0].ChargeThreshold != scenario.expected {
+			t.Fatal("wrong percentage threshold", scenario, events)
 		}
 	}
 }

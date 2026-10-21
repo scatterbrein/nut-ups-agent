@@ -1,6 +1,6 @@
 # Contrato de ingestión v1 — agente y backend del piloto
 
-Implementado en el emisor Go y en el [backend PHP/SQLite](../backend/README.md) bajo `https://ups.omstudioit.com/api/v1/ingest`, con pruebas locales y por HTTPS. La vinculación del agente usa códigos temporales; todavía no hay emparejamiento móvil ni APNs. Las páginas de soporte/privacidad conservan su propósito.
+Implementado en el emisor Go y en el [backend PHP/SQLite](../backend/README.md) bajo `https://ups.omstudioit.com/api/v1/ingest`, con pruebas locales y por HTTPS. La vinculación del agente usa códigos temporales; hay emparejamiento móvil y una integración APNs opcional preparada localmente, aún sin desplegar ni activar. Las páginas de soporte/privacidad conservan su propósito.
 
 ## Transporte e identidad
 
@@ -70,6 +70,8 @@ Cuando existe caché desactualizado, `last_known_readings` incluye esas lecturas
 
 Eventos: `on_battery`, `power_restored`, `low_battery`, `voltage_drop`, `nut_server_unavailable`, `nut_server_reconnected`. Cada uno tiene `id`, `kind`, `source_id`, `observed_at`; los de UPS también `device_id`. La reconexión puede incluir `disconnected_seconds`. `timing_uncertain` indica que no puede atribuirse el cambio al instante físico exacto.
 
+Desde el agente 0.3.1, `low_battery` incluye los campos opcionales `battery_charge` y `charge_threshold`. El backend comprueba el porcentaje contra la lectura fresca del mismo mensaje. Utiliza `battery.charge.low` válido, o el umbral del evento si falta, o 10% para agentes anteriores. Sin un porcentaje válido por debajo o igual al umbral, no registra un nuevo evento ni envía push; conserva y confirma la telemetría normal. Runtime y los indicadores `LB`/`FSD` por sí solos no son evidencia suficiente. Desplegar este backend antes de instalar el agente 0.3.1.
+
 ## Confirmación durable obligatoria
 
 Responder 2xx con JSON:
@@ -99,3 +101,8 @@ El emisor conserva todos los mensajes no confirmados, acepta confirmaciones parc
 2. Flujo móvil de acceso/vinculación/QR, recuperación de credenciales y distribución segura de actualizaciones.
 3. Fuente remota opcional en iOS, conservando el modo local actual.
 4. APNs y gestión de permisos. Los widgets conservan los límites de actualización impuestos por iOS.
+
+
+## Alta sencilla 0.4.0
+
+El instalador prepara un código temporal con POST `/installations`. Un saludo TCP de sólo lectura en el host NUT:3494 devuelve el UUID público de la instalación, nunca el código o secretos. La app envía el código y consentimiento a POST `/installations/claim` por HTTPS, y guarda dos perfiles (local y remoto automático). El agente consulta POST `/installations/status` con una prueba privada y habilita su envío después de la autorización. Consultar `backend/README.md` para límites, recuperación y permisos. Los endpoints previos de vinculación permanecen disponibles para configuraciones avanzadas. El registro de un agente existente requiere su token actual y no lo rota.

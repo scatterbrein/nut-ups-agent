@@ -8,13 +8,18 @@ root=Path(__file__).resolve().parents[1]
 target=root/'dist'
 target.mkdir(exist_ok=True)
 parts=[]
-for name in ['Database.php','Validate.php','Service.php','App.php']:
+for name in ['Database.php','Validate.php','Push.php','Service.php','Onboarding.php','App.php']:
     source=(root/'src'/name).read_text()
     source=source.replace('<?php','').replace('declare(strict_types=1);','').replace('namespace UPS;','')
     source=re.sub(r'^require_once .*?;\s*$', '', source, flags=re.M)
     if name=='Database.php':
         encoded=base64.b64encode((root/'src/schema.sql').read_bytes()).decode()
         source=source.replace("file_get_contents(__DIR__ . '/schema.sql')", "base64_decode('"+encoded+"')")
+        encoded=base64.b64encode((root/'src/push-schema.sql').read_bytes()).decode()
+        source=source.replace("file_get_contents(__DIR__ . '/push-schema.sql')", "base64_decode('"+encoded+"')")
+    if name=='Database.php':
+        encoded=base64.b64encode((root/'src/onboarding-schema.sql').read_bytes()).decode()
+        source=source.replace("file_get_contents(__DIR__ . '/onboarding-schema.sql')", "base64_decode('"+encoded+"')")
     parts.append(source)
 entry=(root/'public/index.php').read_text().replace('<?php','').replace('declare(strict_types=1);','')
 entry=entry.replace("require_once dirname(__DIR__).'/src/App.php';",'')

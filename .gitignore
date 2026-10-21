@@ -8,3 +8,5 @@
 /backend/tests/output/
 /backend/dist/
 __pycache__/
+
+.DS_Store

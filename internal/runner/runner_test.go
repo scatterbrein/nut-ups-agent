@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"omstudioit.com/nut-ups-agent/internal/config"
+	"omstudioit.com/nut-ups-agent/internal/nut"
 	"omstudioit.com/nut-ups-agent/internal/state"
 	"omstudioit.com/nut-ups-agent/internal/uplink"
 	"os"
@@ -21,6 +22,115 @@ import (
 	"testing"
 	"time"
 )
+
+func TestUploadIntervalBatchesReadingsAndEventsBypassTheWait(t *testing.T) {
+	dir := t.TempDir()
+	os.Chmod(dir, 0700)
+	token := filepath.Join(dir, "token")
+	os.WriteFile(token, []byte("synthetic-test-token"), 0600)
+	received := make(chan uplink.Request, 10)
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request uplink.Request
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+			w.WriteHeader(400)
+			return
+		}
+		var ids []string
+		for _, message := range request.Messages {
+			ids = append(ids, message.ID)
+		}
+		json.NewEncoder(w).Encode(uplink.Receipt{AcknowledgedIDs: ids})
+		received <- request
+	}))
+	defer backend.Close()
+	c := config.Config{StateDir: dir, PollSeconds: 3, UploadSeconds: 30, NUTTimeoutSeconds: 2, FailureThreshold: 2, LowBatteryPercent: 10, VoltageDropPercent: 15, MaxPending: 100, Sources: []config.Source{{ID: "pi", Host: "127.0.0.1", Port: 3493}}, Backend: config.Backend{URL: backend.URL, TokenFile: token, AllowHTTPLoopback: true}}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := state.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	add := func(status string) {
+		t.Helper()
+		if err := s.Record([]nut.Result{{Source: c.Sources[0], Reachable: true, Devices: []string{"office"}, Variables: map[string]map[string]string{"office": {"ups.status": status, "battery.charge": "87"}}}}, c, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	next := func() uplink.Request {
+		t.Helper()
+		select {
+		case request := <-received:
+			return request
+		case <-time.After(2 * time.Second):
+			t.Fatal("missing upload")
+			return uplink.Request{}
+		}
+	}
+	acknowledged := func() {
+		t.Helper()
+		for i := 0; i < 200; i++ {
+			if count, _ := s.Stats(); count == 0 {
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+		t.Fatal("receipt not saved")
+	}
+	quiet := func() {
+		t.Helper()
+		select {
+		case <-received:
+			t.Fatal("ordinary reading uploaded before the periodic deadline")
+		case <-time.After(60 * time.Millisecond):
+		}
+	}
+	add("OL")
+	r := Runner{Config: c, Store: s, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), uploadEvery: 300 * time.Millisecond}
+	ctx, cancel := context.WithCancel(context.Background())
+	wake := make(chan struct{}, 1)
+	done := make(chan error, 1)
+	go func() { done <- r.upload(ctx, wake) }()
+	defer func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Error(err)
+			}
+		case <-time.After(time.Second):
+			t.Error("uploader did not stop")
+		}
+	}()
+	if first := next(); len(first.Messages) != 1 {
+		t.Fatal("first reading was not sent immediately")
+	}
+	acknowledged()
+	add("OL")
+	add("OL")
+	wake <- struct{}{} // A stale wake must not bypass the routine interval.
+	quiet()
+	if batch := next(); len(batch.Messages) != 2 || batch.Messages[0].Sequence != 2 || batch.Messages[1].Sequence != 3 {
+		t.Fatal("routine readings were not delivered together in order")
+	}
+	acknowledged()
+	add("OB")
+	wake <- struct{}{}
+	select {
+	case event := <-received:
+		if len(event.Messages) != 1 || len(event.Messages[0].Events) != 1 || event.Messages[0].Events[0].Kind != "on_battery" {
+			t.Fatal("event was not preserved")
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("event waited for the periodic deadline")
+	}
+	acknowledged()
+	add("OB")
+	wake <- struct{}{}
+	quiet()
+}
 
 func TestNUTToDurableQueueToBackendAndRestart(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

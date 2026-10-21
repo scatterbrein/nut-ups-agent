@@ -3,7 +3,8 @@ declare(strict_types=1);
 namespace UPS;
 
 final class Service {
-    public function __construct(public readonly Database $db, private readonly array $config) {}
+    public readonly Push $push;
+    public function __construct(public readonly Database $db, private readonly array $config) { $this->push=new Push($db,$config); }
 
     public static function uuid(): string {
         $b=random_bytes(16);$b[6]=chr((ord($b[6])&15)|64);$b[8]=chr((ord($b[8])&63)|128);$s=bin2hex($b);
@@ -96,7 +97,7 @@ final class Service {
         });
     }
     public function revoke(string $workspace,string $agent,int $now): void {
-        $this->db->transaction(function() use($workspace,$agent,$now): void { $this->ownedAgent($workspace,$agent);$this->db->query('UPDATE agents SET token_hash=NULL,revoked_at=? WHERE id=?',[$now,$agent]); });
+        $this->db->transaction(function() use($workspace,$agent,$now): void { $this->ownedAgent($workspace,$agent);$this->db->query('UPDATE agents SET token_hash=NULL,revoked_at=? WHERE id=?',[$now,$agent]);$this->db->query('DELETE FROM push_subscriptions WHERE agent_id=?',[$agent]); });
     }
 
     public function ingest(string $agent, array $body, int $now, string $tokenHash): array {
@@ -146,7 +147,12 @@ final class Service {
                     if ($observed<$now-7*86400) { continue; }
                     $old=$this->db->row('SELECT event_json FROM events WHERE agent_id=? AND event_id=?',[$agent,$e['id']]);
                     if ($old && Validate::canonical(json_decode($old['event_json'],true,32,JSON_THROW_ON_ERROR))!==Validate::canonical($e)) { throw new ApiError(409,'event_identity_conflict'); }
+                    // Older agents may report LB triggered by runtime at 100%.
+                    // Keep accepting their readings/receipts, but create no new
+                    // low-charge event without percentage evidence in this message.
+                    if ($e['kind']==='low_battery' && !Validate::lowBatteryEvidence($fresh[$e['device_id']??'']??null,$e)) { continue; }
                     $this->db->query('INSERT OR IGNORE INTO events(agent_id,event_id,event_json,observed_at) VALUES(?,?,?,?)',[$agent,$e['id'],self::json($e),$observed]);
+                    if (!$old) { $this->push->enqueue($agent,$e,$fresh[$e['device_id']??'']??null,$now); }
                     if (isset($e['device_id'],$fresh[$e['device_id']])) { $this->sample($agent,$fresh[$e['device_id']],'event:'.$e['id'],$seq,$now); }
                 }
                 $this->db->query('UPDATE agents SET last_sequence=?,last_recorded_at=? WHERE id=? AND last_sequence<?',[$seq,$recorded,$agent,$seq]);

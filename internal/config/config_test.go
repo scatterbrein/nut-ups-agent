@@ -6,6 +6,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func validConfig() Config {
@@ -27,6 +28,8 @@ func TestValidationAndSecrets(t *testing.T) {
 		"command injection":   func(c *Config) { c.Sources[0].UPSKeys = []string{"ups\nINSTCMD"} },
 		"no sources":          func(c *Config) { c.Sources = nil },
 		"relative state":      func(c *Config) { c.StateDir = "state" },
+		"negative upload":     func(c *Config) { c.UploadSeconds = -1 },
+		"stale heartbeat":     func(c *Config) { c.UploadSeconds = 31 },
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := validConfig()
@@ -77,7 +80,7 @@ func TestLoadStrictAndDefaults(t *testing.T) {
 	}
 	os.WriteFile(path, []byte(`{"state_dir":"/tmp/test","sources":[{"id":"pi","host":"127.0.0.1"}]}`), 0600)
 	c, err := Load(path)
-	if err != nil || c.PollSeconds != 3 || c.Sources[0].Port != 3493 {
+	if err != nil || c.PollSeconds != 3 || c.UploadSeconds != 30 || c.UploadInterval() != 30*time.Second || c.Sources[0].Port != 3493 {
 		t.Fatal(c, err)
 	}
 }

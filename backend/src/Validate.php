@@ -60,6 +60,20 @@ final class Validate {
         return $r;
     }
 
+    /** A charge alert needs a valid reported percentage, never just LB or runtime. */
+    public static function lowBatteryEvidence(?array $reading,array $event=[]): ?array {
+        $percent=static function(mixed $value): ?float {
+            if (!is_numeric($value)) { return null; }
+            $number=(float)$value;return is_finite($number)&&$number>=0&&$number<=100?$number:null;
+        };
+        $variables=$reading['variables']??[];
+        $charge=$percent($variables['battery.charge']??null);
+        $threshold=$percent($variables['battery.charge.low']??null)??$percent($event['charge_threshold']??null)??10.0;
+        if ($charge===null||$charge>$threshold) { return null; }
+        if (isset($event['battery_charge'])&&(float)$event['battery_charge']!==$charge) { return null; }
+        return ['charge'=>$charge,'threshold'=>$threshold];
+    }
+
     public static function message(mixed $input, string $agent): array {
         $m=self::keys($input,['schema_version','agent_id','id','sequence','recorded_at','sources','readings','last_known_readings','events','dropped_messages_total']);
         if (($m['schema_version']??null)!==1 || ($m['agent_id']??null)!==$agent) { throw new ApiError(422,'agent_or_schema_mismatch'); }
@@ -90,13 +104,16 @@ final class Validate {
         if (count($devices)>1024) { throw new ApiError(422,'too_many_devices'); }
         $events=[];
         foreach (self::list($m['events']??null,4096) as $e) {
-            self::keys($e,['id','kind','source_id','device_id','observed_at','disconnected_seconds','timing_uncertain']);
+            self::keys($e,['id','kind','source_id','device_id','observed_at','disconnected_seconds','timing_uncertain','battery_charge','charge_threshold']);
             $id=self::id($e['id']??null); $source=self::hash($e['source_id']??null); self::timestamp($e['observed_at']??null);
             if (isset($events[$id]) || !isset($sources[$source]) || !in_array($e['kind']??null,self::EVENTS,true)) { throw new ApiError(422,'invalid_event'); }
             if (str_starts_with($e['kind'],'nut_server_')) { if (isset($e['device_id'])) { throw new ApiError(422,'invalid_event_device'); } }
             else { $device=self::hash($e['device_id']??null); if (($devices[$device]??null)!==$source) { throw new ApiError(422,'invalid_event_device'); } }
             if (isset($e['disconnected_seconds'])) { self::number($e['disconnected_seconds'],315576000); }
             if (isset($e['timing_uncertain'])) { self::boolean($e['timing_uncertain']); }
+            foreach (['battery_charge','charge_threshold'] as $field) {
+                if (array_key_exists($field,$e)) { self::number($e[$field],100); }
+            }
             $events[$id]=$e;
         }
         $m['events']=array_values($events);

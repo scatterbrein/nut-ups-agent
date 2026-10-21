@@ -49,21 +49,25 @@ func observe(old Device, reading model.Reading, c config.Config) (Device, []mode
 		}
 		d.OnBattery = false
 	}
-	low := reading.Flag("LB")
 	charge := reading.Number("battery.charge")
+	if charge != nil && *charge > 100 {
+		charge = nil
+	}
 	threshold := c.LowBatteryPercent
-	if v := reading.Number("battery.charge.low"); v != nil && *v > 0 && *v <= 100 {
+	if v := reading.Number("battery.charge.low"); v != nil && *v <= 100 {
 		threshold = *v
 	}
-	if charge != nil && *charge <= threshold {
-		low = true
-	}
+	// Reported charge is the only low-battery alert criterion. NUT LB may also
+	// describe a runtime reserve while the battery remains fully charged.
+	low := charge != nil && *charge <= threshold
 	if low && !d.LowBattery {
 		add("low_battery")
+		events[len(events)-1].BatteryCharge = charge
+		events[len(events)-1].ChargeThreshold = &threshold
 	}
 	if low {
 		d.LowBattery = true
-	} else if charge != nil && *charge > threshold+2 && reading.Variables["ups.status"] != "" {
+	} else if charge != nil && *charge >= min(100, threshold+2) {
 		d.LowBattery = false
 	}
 	if nominal := reading.Number("input.voltage.nominal"); nominal != nil && *nominal > 0 {

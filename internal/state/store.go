@@ -389,11 +389,20 @@ func (s *Store) Record(results []nut.Result, c config.Config, at time.Time) erro
 }
 
 func (s *Store) Batch() []model.Envelope {
+	return s.BatchThrough(0)
+}
+
+// Freeze each upload cycle at a sequence so new ordinary polls do not turn a
+// slow backlog drain into continuous uploads. Events wake the next cycle.
+func (s *Store) BatchThrough(sequence uint64) []model.Envelope {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []model.Envelope
 	bytes := 0
 	for _, e := range s.data.Pending {
+		if sequence != 0 && e.Sequence > sequence {
+			break
+		}
 		b, _ := json.Marshal(e)
 		if len(out) > 0 && (len(out) >= 100 || bytes+len(b) > 512*1024) {
 			break
@@ -406,6 +415,16 @@ func (s *Store) Batch() []model.Envelope {
 	var copy []model.Envelope
 	_ = json.Unmarshal(b, &copy)
 	return copy
+}
+
+func (s *Store) UploadState() (sequence uint64, urgent bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, message := range s.data.Pending {
+		sequence = message.Sequence
+		urgent = urgent || len(message.Events) > 0
+	}
+	return
 }
 func (s *Store) Acknowledge(ids []string) error {
 	if len(ids) == 0 {

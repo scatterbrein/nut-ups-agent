@@ -48,7 +48,13 @@ try {
         if (!is_array($body)||($body!==[]&&array_is_list($body))) { throw new \UPS\ApiError(400,'json_object_required'); }
     }
     $app=new \UPS\App($config);
-    echo \UPS\Service::json($app->handle($method,$path,$token,$body,$_GET,$_SERVER['REMOTE_ADDR']??'unknown',time()));
+    $result=$app->handle($method,$path,$token,$body,$_GET,$_SERVER['REMOTE_ADDR']??'unknown',time());
+    echo \UPS\Service::json($result);
+    // A push failure never rolls back or changes the durable ingestion acknowledgement.
+    if ($method==='POST' && $path==='/ingest') {
+        if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
+        try { $app->service->push->drain(time()); } catch (\Throwable) { error_log('UPS push worker unavailable'); }
+    }
 } catch (\Throwable $error) {
     $status=$error instanceof \UPS\ApiError?$error->status:503;
     $code=$error instanceof \UPS\ApiError?$error->errorCode:'service_unavailable';

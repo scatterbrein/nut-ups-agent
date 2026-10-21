@@ -1,6 +1,7 @@
 {
   "state_dir": "/var/lib/nut-ups-agent",
   "poll_seconds": 3,
+  "upload_seconds": 30,
   "nut_timeout_seconds": 5,
   "failure_threshold": 2,
   "low_battery_percent": 10,

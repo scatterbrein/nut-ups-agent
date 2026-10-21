@@ -1,14 +1,43 @@
-# NUT UPS Monitor — agente local opcional (piloto 0.2.0)
+# NUT UPS Monitor — agente local opcional (piloto 0.4.0)
 
-Componente opcional del futuro modo remoto. Se ejecuta en el equipo que puede consultar NUT y conserva lecturas aunque el iPhone esté cerrado. Incluye un [backend ligero](backend/README.md) en **https://ups.omstudioit.com/api/v1** y vinculación por código temporal. **Todavía no actualiza la app móvil:** faltan su fuente remota, el flujo de acceso para usuarios finales y APNs. La app 1.1 permanece sin cambios; el sitio conserva sus páginas.
+Agente opcional para NUT UPS Monitor. Se ejecuta junto a NUT y conserva lecturas aunque el iPhone esté cerrado. La app 1.2 en desarrollo puede detectar una instalación preparada, crear su espacio privado y guardar las conexiones local y remota desde la misma pantalla. El acceso remoto y APNs utilizan **https://ups.omstudioit.com/api/v1**. La conexión exclusivamente local no necesita agente ni cuenta.
+
+## Configuración sencilla (0.4.0)
+
+1. Tener NUT funcionando en la Raspberry Pi / Linux con systemd.
+2. Instalar el paquete del agente. La configuración inicial consulta `127.0.0.1:3493` y descubre todos los UPS; no cambia NUT.
+3. Instalar NUT UPS Monitor en el iPhone y conectarlo a la misma red.
+4. En Agregar servidor, introducir la IP del servidor NUT y probar la conexión. La app detecta el agente preparado. Elegir **Enable Remote Access**, escribir el código de ocho dígitos mostrado por el instalador y guardar. No se necesitan tokens ni un backend propio.
+
+El código vence a los 30 minutos y admite cinco intentos fallidos. Si vence antes de terminar, ejecutar `sudo nut-ups-agent-setup` en el Pi para preparar otro código. Las instalaciones ya vinculadas conservan su conexión; este comando no las desvincula.
+
+El instalador público de un comando está preparado en `scripts/install-online.sh` para la release `v0.4.0`. **No anunciar el comando público hasta publicar esa release y desplegar el backend compatible con instalaciones.** Después de publicarla:
+
+```sh
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' https://raw.githubusercontent.com/scatterbrein/nut-ups-agent/main/scripts/install-online.sh | sh
+```
+
+El script detecta ARM64 / AMD64 / ARMv7, descarga el paquete versionado y verifica SHA-256 antes de invocar el instalador con sudo. Se conserva una copia del binario anterior; un fallo de actualización restaura el binario y servicio previos. Para una instalación manual desde el paquete verificado:
+
+```sh
+sudo sh scripts/install-and-start.sh ./nut-ups-agent-linux-arm64
+```
+
+Durante la vinculación se abre temporalmente TCP 3494 para un único saludo de descubrimiento en la red privada. No ofrece HTTP, controles, cambios de configuración ni secretos. No abrir ese puerto en el router. La app confirma la vinculación mediante HTTPS al servicio fijo de OM Studio IT; el código, contraseñas NUT y tokens nunca se intercambian por ese puerto local. Pasados 30 minutos, se cierra el descubrimiento. NUT puede permanecer activo sin acceso remoto.
+
+Si el agente corre en un equipo distinto del servidor NUT, o éste requiere credenciales de lectura, conservar el flujo avanzado y ajustar `sources` de forma explícita. El flujo sencillo está pensado para instalar el agente junto a NUT.
+
+En la configuración remota de la app, el iPhone que crea el espacio puede generar un código para otro iPhone o eliminar los datos remotos. Los iPhones invitados no pueden borrar el espacio. La eliminación no modifica NUT ni borra el histórico local del iPhone.
 
 ## Qué funciona
 
 - Cliente TCP NUT de sólo lectura, sin `upsc`, Python, Docker, bibliotecas externas ni acceso USB/GPIO. NUT y su driver siguen siendo necesarios.
 - Varias fuentes NUT y varios UPS; descubrimiento con `LIST UPS`, lectura con `LIST VAR`. Opcionalmente selecciona `ups_keys`.
 - Ciclos con pausa de 3 segundos después de terminar cada consulta; no se superponen. Hasta cuatro servidores en paralelo. El driver NUT determina qué tan reciente es el dato del hardware.
+- Envíos ordinarios al backend cada 30 segundos, agrupando los mensajes pendientes. El primer envío al arrancar es inmediato; los eventos de energía y conectividad adelantan un envío. Los fallos conservan los mensajes y respetan el backoff y `Retry-After` existentes. El intervalo no bloquea las lecturas locales.
 - Última lectura persistente, con fecha original y estado `stale` cuando una lectura falla. Nunca se inventan valores faltantes ni se hace contar hacia atrás la autonomía.
 - Eventos: entrada en batería, regreso de energía, batería baja, caída de tensión, servidor NUT inaccesible y reconectado. Los de conectividad requieren dos fallos consecutivos por defecto y no se repiten en cada sondeo. Una falla de autenticación no se presenta como pérdida de energía o servidor inaccesible.
+- Batería baja se determina por `battery.charge` y el umbral `battery.charge.low` válido del UPS; si falta el umbral, se usa el porcentaje configurado del agente. Runtime, `LB` o `FSD` por sí solos no generan esta alerta. Los eventos incluyen el porcentaje observado y el umbral utilizado.
 - Potencia medida cuando existe `ups.realpower`; en otro caso, estimación marcada como tal a partir de potencia nominal y carga.
 - Cola persistente para envío HTTPS, reintentos con espera progresiva, identidad estable e identificadores para deduplicar. Una recepción HTTP 200 sin confirmación explícita **no borra** la cola.
 - Diario incremental con checksum y sincronización a disco; checkpoint atómico cada 4 MiB. Recupera una escritura final incompleta y conserva un archivo corrupto para reparación, sin resetearlo silenciosamente. Sólo un proceso puede utilizar el mismo directorio.
@@ -43,6 +72,7 @@ En el equipo Linux, extrae el paquete de su arquitectura. Copia `config.example.
 - `sources[].host`: `127.0.0.1` si el agente corre junto a NUT; la IP o nombre del servidor si corre en otro equipo.
 - `sources[].id`: nombre estable elegido por ti. No cambiarlo para renombrar una fuente; utiliza `name`.
 - `backend.url`: vacío para esta primera prueba local; el modo remoto se activa únicamente mediante configuración explícita o vinculación.
+- `upload_seconds`: 30 por defecto, independiente de `poll_seconds` (3). Se admiten valores de 1 a 30 para mantener el latido por debajo del umbral de disponibilidad del backend. Si falta el campo en una instalación anterior, se usa 30 sin reescribir el archivo.
 
 ```sh
 ./nut-ups-agent-linux-arm64 -config ./config.local.json -check-config
@@ -66,6 +96,20 @@ El modo `-once` guarda el resultado y, si existe backend, intenta un envío. Sin
 ```
 
 Con la lectura de referencia: batería 100%, carga 5%, nominal 810 W → estimación 40.5 W; autonomía 11430 segundos. No se presupone que otros UPS publiquen esos campos o esa potencia.
+
+## Actualizar una instalación existente
+
+Extraer el paquete 0.4.0 de la arquitectura correcta y ejecutar:
+
+```sh
+sudo sh scripts/install-and-start.sh ./nut-ups-agent-linux-arm64
+sudo systemctl status nut-ups-agent --no-pager -l
+sudo journalctl -u nut-ups-agent -n 10 --no-pager
+```
+
+El instalador conserva configuración, estado y vinculación existentes; no hay que volver a emparejar. El inicio debe informar `version=0.4.0`, `poll_seconds=3` y `upload_seconds=30`. Actualizar primero el backend 0.4.0 (schema 4) antes de distribuir el nuevo flujo de instalación. Antes de instalar, verificar el paquete con `SHA256SUMS`.
+
+Los lotes reducen las solicitudes HTTPS, no la cantidad de lecturas que procesa el backend. El histórico remoto conserva una lectura por minuto y lecturas adicionales para eventos, durante siete días. No se promete retención de todas las muestras de tres segundos en el servidor.
 
 ## Instalar en Raspberry Pi / Debian
 
